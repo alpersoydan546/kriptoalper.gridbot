@@ -5,10 +5,10 @@ import os
 from datetime import datetime
 
 # --- GRID BOT v1 - 10$ + 3x İZOLE + SOLUSDT ---
-API_KEY = os.environ.get('API_KEY')
-API_SECRET = os.environ.get('API_SECRET')
-TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
-TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
+API_KEY = os.environ.get('mBblexRrtF9bglEA5X6ynSDNZLtciK3VV09fRGVFYGbR2irm9aQSd1wRnH8pqFpq')
+API_SECRET = os.environ.get('Bp7YyGrNnR1KMZTMpfGNg9TFqDd27Ivgk8HUCuBtBLp8S2OtGr9AoqWnlUoqmbiq')
+TELEGRAM_TOKEN = os.environ.get('8498989500:AAGmk-2OBpal04K4i6ZMk6YaYNC79Fa_xac')
+TELEGRAM_CHAT_ID = os.environ.get('8120732989')
 SYMBOL = 'SOLUSDT'
 AMOUNT = 10  # dolar
 LEVERAGE = 3
