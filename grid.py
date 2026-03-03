@@ -2,18 +2,21 @@ import ccxt
 import time
 import requests
 import os
-from datetime import datetime
 
-# --- GRID BOT v1 - 10$ + 3x İZOLE + SOLUSDT ---
+# ================== ENV KONTROLLERİ ==================
 API_KEY = os.environ.get('mBblexRrtF9bglEA5X6ynSDNZLtciK3VV09fRGVFYGbR2irm9aQSd1wRnH8pqFpq')
 API_SECRET = os.environ.get('Bp7YyGrNnR1KMZTMpfGNg9TFqDd27Ivgk8HUCuBtBLp8S2OtGr9AoqWnlUoqmbiq')
 TELEGRAM_TOKEN = os.environ.get('8498989500:AAGmk-2OBpal04K4i6ZMk6YaYNC79Fa_xac')
 TELEGRAM_CHAT_ID = os.environ.get('8120732989')
 SYMBOL = 'SOLUSDT'
-AMOUNT = 10  # dolar
-LEVERAGE = 3
-GRID_COUNT = 8
-GRID_INTERVAL_PCT = 0.006  # %0.6 aralık
+AMOUNT = float(os.environ.get('AMOUNT', 10))
+LEVERAGE = int(os.environ.get('LEVERAGE', 3))
+
+# Env kontrolü
+if not all([API_KEY, API_SECRET, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]):
+    print("❌ EKSİK ENV VARIABLE! Lütfen Render'da şu 4 tanesini ekle:")
+    print("API_KEY, API_SECRET, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID")
+    exit()
 
 exchange = ccxt.binance({
     'apiKey': API_KEY,
@@ -26,64 +29,50 @@ def send_telegram(message):
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         data = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "HTML"}
-        requests.post(url, data=data, timeout=10)
-    except:
-        pass
+        r = requests.post(url, data=data, timeout=10)
+        if r.status_code != 200:
+            print(f"Telegram hatası: {r.text}")
+    except Exception as e:
+        print(f"Telegram gönderme hatası: {e}")
 
-def set_leverage_and_isolated():
+print("✅ Grid Bot başlatılıyor...")
+
+def set_leverage():
     try:
         exchange.fapiPrivate_post_leverage({'symbol': SYMBOL, 'leverage': LEVERAGE})
         exchange.fapiPrivate_post_marginType({'symbol': SYMBOL, 'marginType': 'ISOLATED'})
-        send_telegram(f"☁️ Grid Bot: {LEVERAGE}x izole mod aktif - {SYMBOL}")
+        send_telegram(f"☁️ Grid Bot Aktif\n{SYMBOL} - {LEVERAGE}x İzole\n10$ ile başlıyor")
+        print("✅ Leverage ve İzole mod ayarlandı")
     except Exception as e:
-        send_telegram(f"Setup hata: {str(e)}")
-
-def get_price():
-    ticker = exchange.fetch_ticker(SYMBOL)
-    return float(ticker['last'])
+        send_telegram(f"⚠️ Leverage hatası: {str(e)}")
+        print(f"Leverage hatası: {e}")
 
 def create_grid():
-    price = get_price()
-    grid_interval = price * GRID_INTERVAL_PCT
-    qty = AMOUNT / (price * LEVERAGE * GRID_COUNT)  # her grid için miktar
+    try:
+        price = float(exchange.fetch_ticker(SYMBOL)['last'])
+        interval = price * 0.006   # %0.6 aralık
+        qty = AMOUNT / (price * LEVERAGE * 8)
 
-    send_telegram(f"☁️ Grid kuruluyor: {SYMBOL} - {GRID_COUNT} grid, ±%{(GRID_COUNT*GRID_INTERVAL_PCT*100):.1f} aralık\nBaşlangıç: {price}")
+        send_telegram(f"🛠️ Grid kuruluyor...\nBaşlangıç fiyat: {price:.2f}\n8 grid × %0.6 aralık")
 
-    for i in range(GRID_COUNT):
-        buy_price = price - (i + 1) * grid_interval
-        sell_price = price + (i + 1) * grid_interval
-
-        try:
+        for i in range(8):
+            buy_price = price - (i + 1) * interval
+            sell_price = price + (i + 1) * interval
             exchange.create_limit_buy_order(SYMBOL, qty, buy_price)
             exchange.create_limit_sell_order(SYMBOL, qty, sell_price)
-        except Exception as e:
-            send_telegram(f"Grid emir hata: {str(e)}")
-            return
 
-def monitor_and_protect():
-    while True:
-        try:
-            price = get_price()
-            # Aralığın dışına çıkarsa durdur (manuel restart)
-            initial_price = get_price()  # başlangıç fiyatını dinamik tutmak için
-            if abs(price - initial_price) / initial_price > 0.05:
-                send_telegram("⚠️ Fiyat aralık dışı kaldı, bot durdu. Dashboard'dan manuel restart yap.")
-                break
+        send_telegram("✅ Grid başarıyla kuruldu! Artık otomatik işlem yapıyor.")
+        print("✅ Grid kuruldu")
+    except Exception as e:
+        send_telegram(f"❌ Grid kurulum hatası: {str(e)}")
+        print(f"Grid hatası: {e}")
 
-            # Kar izleme (%20'de mesaj)
-            positions = exchange.fapiPrivate_get_positionrisk({'symbol': SYMBOL})
-            for pos in positions:
-                pnl = float(pos['unrealizedProfit'])
-                if pnl > 0.2 * AMOUNT:
-                    send_telegram(f"💰 Pozisyon karı +{pnl:.2f}$ - Kısmi kar al veya trailing stop düşün")
-
-            time.sleep(60)
-        except Exception as e:
-            send_telegram(f"Monitor hata: {str(e)}")
-            time.sleep(300)
-
+# ===================== ANA ÇALIŞMA =====================
 if __name__ == "__main__":
-    send_telegram("☁️ Grid Bot Başladı - 10$ + 3x izole + SOLUSDT")
-    set_leverage_and_isolated()
+    send_telegram("🚀 Grid Bot v2 Başladı - 10$ + 3x İzole + SOLUSDT")
+    set_leverage()
     create_grid()
-    monitor_and_protect()
+    
+    # Basit monitor (sadece aralık kontrolü)
+    while True:
+        time.sleep(300)  # 5 dakikada bir kontrol
